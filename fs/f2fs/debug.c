@@ -28,6 +28,21 @@ static struct dentry *f2fs_debugfs_root;
 #endif
 extern struct proc_dir_entry *f2fs_proc_root;
 
+// - include/trace/events/f2fs.h show_fsync_cpreason
+static const char *f2fs_cp_reasons[NR_CP_REASON] = {
+	"no needed",
+	"non regular",
+	"hardlink",
+	"sb needs cp",
+	"wrong pino",
+	"no space roll forward",
+	"node needs cp",
+	"fastboot mode",
+	"log type is 2",
+	"dir needs recovery",
+	"dir xattr updated",
+};
+
 /*
  * This function calculates BDF of every segments
  */
@@ -92,6 +107,8 @@ static void update_general_status(struct f2fs_sb_info *sbi)
 	/* block age extent_cache only */
 	si->allocated_data_blocks = atomic64_read(&sbi->allocated_data_blocks);
 
+	for (i = 0; i < NR_CP_REASON; i++)
+		si->cp_reason_total[i] = atomic64_read(&sbi->cp_reason_count[i]);
 	/* validation check of the segment numbers */
 	si->ndirty_node = get_pages(sbi, F2FS_DIRTY_NODES);
 	si->ndirty_dent = get_pages(sbi, F2FS_DIRTY_DENTS);
@@ -398,6 +415,8 @@ static int stat_show(struct seq_file *s, void *v)
 				si->meta_count[META_NAT]);
 		seq_printf(s, "  - ssa blocks : %u\n",
 				si->meta_count[META_SSA]);
+		for (i = 0; i < NR_CP_REASON; i++)
+			seq_printf(s, "  - %s : %llu\n", f2fs_cp_reasons[i], si->cp_reason_total[i]);
 		seq_printf(s, "CP merge (Queued: %4d, Issued: %4d, Total: %4d, "
 				"Cur time: %4d(ms), Peak time: %4d(ms))\n",
 				si->nr_queued_ckpt, si->nr_issued_ckpt,
@@ -570,6 +589,8 @@ int f2fs_build_stats(struct f2fs_sb_info *sbi)
 	/* read extent_cache only */
 	atomic64_set(&sbi->read_hit_largest, 0);
 
+	for (i = 0; i < NR_CP_REASON; i++)
+		atomic64_set(&sbi->cp_reason_count[i], 0);
 	atomic_set(&sbi->inline_xattr, 0);
 	atomic_set(&sbi->inline_inode, 0);
 	atomic_set(&sbi->inline_dir, 0);
